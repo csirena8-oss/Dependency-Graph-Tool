@@ -51,3 +51,69 @@ def decode_index(data: bytes, name: str) -> str:
         return data.decode("utf-8")
     except (OSError, lzma.LZMAError, UnicodeDecodeError) as exc:
         raise AptIndexError(f"cannot decode {name}: {exc}") from exc
+
+def parse_stanzas(text: str) -> list[dict[str, str]]:
+    """Parse Packages index text into stanzas."""
+    stanzas: list[dict[str, str]] = []
+    current: dict[str, str] = {}
+    last_key = None
+    for line in text.splitlines():
+        if not line.strip():
+            if current:
+                stanzas.append(current)
+                current = {}
+                last_key = None
+            continue
+        if line[0].isspace() and last_key:
+            current[last_key] += "\n" + line.strip()
+            continue
+        key, sep, value = line.partition(":")
+        if not sep:
+            raise AptIndexError(f"invalid index line: {line}")
+        last_key = key.strip()
+        current[last_key] = value.strip()
+    if current:
+        stanzas.append(current)
+    return stanzas
+
+
+def parse_depends(value: str) -> list[str]:
+    """Extract dependency names from an apt Depends field."""
+    result: list[str] = []
+    if not value.strip():
+        return result
+    for group in value.split(","):
+        first = group.split("|", 1)[0].strip()
+        name = first.split("(", 1)[0].strip()
+        name = name.split(":", 1)[0].strip()
+        if name and name not in result:
+            result.append(name)
+    return result
+
+
+def find_package(
+    stanzas: list[dict[str, str]],
+    name: str,
+    version: str,
+) -> dict[str, str]:
+    """Find a package stanza by name and version."""
+    for stanza in stanzas:
+        if (
+            stanza.get("Package") == name
+            and stanza.get("Version") == version
+        ):
+            return stanza
+    raise AptIndexError(
+        f"package {name} version {version} not found"
+    )
+
+
+def direct_dependencies(
+    text: str,
+    name: str,
+    version: str,
+) -> list[str]:
+    """Return direct dependencies for a package."""
+    stanzas = parse_stanzas(text)
+    stanza = find_package(stanzas, name, version)
+    return parse_depends(stanza.get("Depends", ""))
