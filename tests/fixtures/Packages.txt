@@ -1,0 +1,15 @@
+Package: app
+Version: 1.0
+Depends: liba (>= 1.0), libb | libc, libd:any
+
+Package: liba
+Version: 1.0
+Depends: libb
+
+Package: libb
+Version: 1.0
+Depends:
+
+Package: libc
+Version: 1.0
+Depends: liba
