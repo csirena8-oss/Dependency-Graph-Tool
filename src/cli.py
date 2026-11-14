@@ -1,18 +1,20 @@
-"""Command line interface for stage 1."""
+"""Command line interface for stages 1 and 2."""
 
 import argparse
 import sys
 
+from .apt_index import AptIndexError, direct_dependencies, read_index
 from .config import Config, ConfigError, validate_config
 
 
 STAGE_ONE = 1
+STAGE_TWO = 2
 
 
 def build_parser() -> argparse.ArgumentParser:
     """Create the CLI argument parser."""
     parser = argparse.ArgumentParser(
-        description="Dependency graph tool, stage 1"
+        description="Dependency graph tool, stages 1 and 2"
     )
     parser.add_argument("--package", required=True)
     parser.add_argument("--repo", required=True)
@@ -22,7 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--stage",
         type=int,
-        choices=(STAGE_ONE,),
+        choices=(STAGE_ONE, STAGE_TWO),
         default=STAGE_ONE,
     )
     return parser
@@ -48,6 +50,18 @@ def print_config(config: Config) -> None:
     print(f"max_depth={config.max_depth}")
 
 
+def run_stage_two(config: Config) -> None:
+    """Print direct dependencies for the configured package."""
+    text = read_index(config.repo, config.test_mode)
+    deps = direct_dependencies(
+        text,
+        config.package,
+        config.version,
+    )
+    for dep in deps:
+        print(dep)
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI."""
     parser = build_parser()
@@ -55,8 +69,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         config = config_from_args(args)
         validate_config(config)
-        print_config(config)
-    except (ConfigError, OSError) as exc:
+        if args.stage == STAGE_ONE:
+            print_config(config)
+        else:
+            run_stage_two(config)
+    except (ConfigError, AptIndexError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     return 0
