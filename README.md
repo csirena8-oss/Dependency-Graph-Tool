@@ -1,1 +1,1 @@
-# Dependency-Graph-Tool
+# Dependency Graph Tool — вариант №25
